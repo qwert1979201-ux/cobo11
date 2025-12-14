@@ -1,0 +1,90 @@
+Args:
+    user_utterance (str): The natural language query from the user.
+
+Returns:
+    dict: A dictionary of extracted entities, categorized by type.
+"""
+extracted_entities = {
+    "data_identifiers": [],
+    "column_names": [],
+    "values_filters": [],
+    "method_parameters": [],
+    "visualization_types": [],
+    "model_types": [],
+    "metrics": [],
+    "report_elements": [],
+    "file_formats": [],
+    "output_destination": []
+}
+
+# --- Regex Patterns for Structured Entities ---
+
+# 1. Data Identifiers (file paths, URLs, named dataframes)
+# Matches .csv, .xlsx, .json, .parquet, .txt files; also handles backticks and quotes
+file_pattern = re.compile(r"`([^`]+\.(?:csv|xlsx|json|parquet|txt|db))|'([^']+\.(?:csv|xlsx|json|parquet|txt|db))|"([^"]+\.(?:csv|xlsx|json|parquet|txt|db))")")
+for match in file_pattern.finditer(user_utterance):
+    for group in match.groups():
+        if group:
+            extracted_entities["data_identifiers"].append(group)
+
+# URLs
+url_pattern = re.compile(r"https?://[^\s]+")
+for match in url_pattern.finditer(user_utterance):
+    extracted_entities["data_identifiers"].append(match.group(0))
+
+# 2. Column Names (enclosed in backticks or quotes, or common column prefixes/suffixes)
+column_pattern_backticks = re.compile(r"`([^`]+)`")
+for match in column_pattern_backticks.finditer(user_utterance):
+    extracted_entities["column_names"].append(match.group(1))
+
+column_pattern_quotes = re.compile(r"'([^']+)'|"([^"]+)"")")
+for match in column_pattern_quotes.finditer(user_utterance):
+    for group in match.groups():
+        if group:
+            # Avoid misidentifying string values as column names unless contextually relevant
+            # For now, extract all, refinement will happen later.
+            extracted_entities["column_names"].append(group)
+
+# 3. Values/Filters (numeric conditions, specific categorical values)
+# e.g., 'age > 30', 'price between 100 and 500', 'top 10'
+# Simple numeric comparison
+numeric_filter_pattern = re.compile(r"\b(\w+)\s*(?:>|<|>=|<=|==|!=)\s*(\d+\.?\d*)")
+for match in numeric_filter_pattern.finditer(user_utterance):
+    extracted_entities["values_filters"].append(match.group(0))
+
+# 'top N' pattern
+top_n_pattern = re.compile(r"top\s*(\d+)")
+for match in top_n_pattern.finditer(user_utterance):
+    extracted_entities["values_filters"].append(match.group(0))
+
+# 4. Method Parameters (k=N, split ratio X, target=Y, strategy=Z)
+param_pattern = re.compile(r"(\w+)\s*=\s*([\w."']+)|"([\w.]+)\s*(\d+\.?\d*\s*split\s*ratio)")")
+for match in param_pattern.finditer(user_utterance):
+    extracted_entities["method_parameters"].append(match.group(0))
+
+# Common visualization types (case-insensitive for now)
+viz_types = ['histogram', 'boxplot', 'scatter plot', 'bar chart', 'line graph', 'heatmap', 'pair plot', 'violin plot']
+for viz_type in viz_types:
+    if re.search(r'\b' + re.escape(viz_type) + r'\b', user_utterance, re.IGNORECASE):
+        extracted_entities["visualization_types"].append(viz_type)
+
+# Common model types (case-insensitive for now)
+model_types = ['logistic regression', 'random forest', 'k-means', 'decision tree', 'linear regression', 'svm', 'xgboost', 'gradient boosting']
+for model_type in model_types:
+    if re.search(r'\b' + re.escape(model_type) + r'\b', user_utterance, re.IGNORECASE):
+        extracted_entities["model_types"].append(model_type)
+
+# Common metrics (case-insensitive)
+metrics_list = ['accuracy', 'rmse', 'f1-score', 'auc', 'precision', 'recall', 'mae', 'r-squared']
+for metric in metrics_list:
+    if re.search(r'\b' + re.escape(metric) + r'\b', user_utterance, re.IGNORECASE):
+        extracted_entities["metrics"].append(metric)
+
+# Common file formats
+file_formats_list = ['csv', 'json', 'excel', 'parquet', 'pickle', 'hdf5']
+for fmt in file_formats_list:
+    if re.search(r'\b' + re.escape(fmt) + r'\b', user_utterance, re.IGNORECASE):
+        extracted_entities["file_formats"].append(fmt)
+
+# Clean up empty lists in the dictionary
+return {k: list(set(v)) for k, v in extracted_entities.items() if v}
